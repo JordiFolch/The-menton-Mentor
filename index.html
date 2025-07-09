@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Canvis en Projectes</title>
+    <style>
+        body {font-family: Arial, sans-serif; margin: 0; padding: 0;}
+        header {padding: 20px; background-color: #f4f4f4; text-align: center;}
+        .avatar {width: 100px; height: auto; border-radius: 50%;}
+        nav {text-align: center; margin: 20px 0;}
+        nav button {padding: 10px 20px; margin: 0 5px; cursor: pointer;}
+        main {max-width: 800px; margin: auto; padding: 20px;}
+        .idioma {display: none;}
+        .active {display: block;}
+    </style>
+</head>
+<body>
+
+<header>
+    <img src="menton_mentor_obra.webp" alt="Avatar Mentor" class="avatar">
+    <h1>The Menton Mentor</h1>
+</header>
+
+<nav>
+    <button onclick="mostraIdioma('ca')">Català</button>
+    <button onclick="mostraIdioma('es')">Castellano</button>
+    <button onclick="mostraIdioma('en')">English</button>
+</nav>
+
+<main>
+    <div id="ca" class="idioma active">
+        <h2>El control de canvis en un projecte d’edificació</h2>
+        <p>La gestió del control de canvis en un projecte constructiu és clau per assegurar que els objectius principals de temps, cost i qualitat es compleixin amb la menor desviació possible. Aquest procés consisteix en detectar, avaluar, aprovar i implementar les modificacions que poden sorgir durant l’execució d’un projecte.</p>
+    </div>
+
+    <div id="es" class="idioma">
+        <h2>El control de cambios en un proyecto de edificación</h2>
+        <p>La gestión del control de cambios en un proyecto constructivo es clave para asegurar que los objetivos principales de tiempo, coste y calidad se cumplan con la menor desviación posible. Este proceso consiste en detectar, evaluar, aprobar e implementar las modificaciones que pueden surgir durante la ejecución de un proyecto.</p>
+    </div>
+
+    <div id="en" class="idioma">
+        <h2>Change control in a construction project</h2>
+        <p>The management of change control in a construction project is crucial to ensure that the primary objectives of time, cost, and quality are achieved with minimal deviation. This process involves detecting, evaluating, approving, and implementing modifications that may arise during project execution.</p>
+    </div>
+</main>
+
+<script>
+function mostraIdioma(idioma) {
+    document.querySelectorAll('.idioma').forEach(el => el.classList.remove('active'));
+    document.getElementById(idioma).classList.add('active');
+}
+</script>
+
+</body>
+</html>
