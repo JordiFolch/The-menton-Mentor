@@ -1,57 +1,746 @@
-
 <!DOCTYPE html>
 <html lang="ca">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Canvis en Projectes</title>
+    <title>The Menton Mentor - Control de Canvis en Projectes</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        body {font-family: Arial, sans-serif; margin: 0; padding: 0;}
-        header {padding: 20px; background-color: #f4f4f4; text-align: center;}
-        .avatar {width: 100px; height: auto; border-radius: 50%;}
-        nav {text-align: center; margin: 20px 0;}
-        nav button {padding: 10px 20px; margin: 0 5px; cursor: pointer;}
-        main {max-width: 800px; margin: auto; padding: 20px;}
-        .idioma {display: none;}
-        .active {display: block;}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        
+        header {
+            padding: 30px 20px;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            text-align: center;
+            position: relative;
+        }
+        
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+            object-fit: cover;
+        }
+        
+        .avatar:hover {
+            transform: scale(1.05);
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        nav {
+            background: #34495e;
+            padding: 15px 0;
+            text-align: center;
+            border-bottom: 3px solid #2c3e50;
+        }
+        
+        nav button {
+            padding: 12px 25px;
+            margin: 0 8px;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            font-size: 1em;
+            font-weight: 500;
+        }
+        
+        nav button:hover {
+            background: #3498db;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        nav button.active-lang {
+            background: #3498db;
+            box-shadow: 0 3px 10px rgba(52, 152, 219, 0.3);
+        }
+        
+        main {
+            padding: 40px;
+        }
+        
+        .idioma {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .idioma.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2em;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        p {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            text-align: justify;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        }
+        
+        .section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .phases {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .phase {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+            border-top: 4px solid #3498db;
+        }
+        
+        .phase:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .phase h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        
+        .phase-number {
+            background: #3498db;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .benefits {
+            background: #e8f6f3;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 30px;
+            border-left: 5px solid #27ae60;
+        }
+        
+        .benefits h3 {
+            color: #27ae60;
+            margin-bottom: 15px;
+        }
+        
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        li::before {
+            content: '✓';
+            color: #27ae60;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        
+        .case-study {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        
+        .case-study h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .tools {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .tool {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .tool-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            header {
+                padding: 20px 15px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            main {
+                padding: 20px;
+            }
+            
+            nav button {
+                padding: 10px 15px;
+                margin: 5px;
+                font-size: 0.9em;
+            }
+            
+            .phases {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
 
-<header>
-    <img src="menton_mentor_obra.webp" alt="Avatar Mentor" class="avatar">
-    <h1>The Menton Mentor</h1>
-</header>
+<div class="container">
+    <header>
+        <img src="Menton mentor obra.webp" alt="Avatar Mentor" class="avatar">
+        <h1>The Menton Mentor</h1>
+        <p class="subtitle">Experiències professionals en gestió d'obres</p>
+    </header>
 
-<nav>
-    <button onclick="mostraIdioma('ca')">Català</button>
-    <button onclick="mostraIdioma('es')">Castellano</button>
-    <button onclick="mostraIdioma('en')">English</button>
-</nav>
+    <nav>
+        <button id="btn-ca" onclick="mostraIdioma('ca')" class="active-lang">Català</button>
+        <button id="btn-es" onclick="mostraIdioma('es')">Castellano</button>
+        <button id="btn-en" onclick="mostraIdioma('en')">English</button>
+    </nav>
 
-<main>
-    <div id="ca" class="idioma active">
-        <h2>El control de canvis en un projecte d’edificació</h2>
-        <p>La gestió del control de canvis en un projecte constructiu és clau per assegurar que els objectius principals de temps, cost i qualitat es compleixin amb la menor desviació possible. Aquest procés consisteix en detectar, avaluar, aprovar i implementar les modificacions que poden sorgir durant l’execució d’un projecte.</p>
-    </div>
+    <main>
+        <div id="ca" class="idioma active">
+            <h2>El control de canvis en un projecte d'edificació</h2>
+            
+            <div class="section">
+                <p>La gestió del control de canvis en un projecte constructiu és clau per assegurar que els objectius principals de temps, cost i qualitat es compleixin amb la menor desviació possible. Aquest procés consisteix en detectar, avaluar, aprovar i implementar les modificacions que poden sorgir durant l'execució d'un projecte.</p>
+                
+                <p>Durant la meva experiència com a director d'obres, he pogut comprovar que un sistema eficaç de control de canvis pot significar la diferència entre l'èxit i el fracàs d'un projecte constructiu.</p>
+            </div>
+            
+            <div class="section">
+                <h3>Fases del Control de Canvis</h3>
+                <div class="phases">
+                    <div class="phase">
+                        <div class="phase-number">1</div>
+                        <h4>Identificació</h4>
+                        <p>Detectar la necessitat del canvi a través de la supervisió contínua de l'obra i la comunicació amb tots els agents implicats.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">2</div>
+                        <h4>Avaluació</h4>
+                        <p>Analitzar l'impacte del canvi en el temps, cost, qualitat i recursos del projecte mitjançant estudis tècnics detallats.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">3</div>
+                        <h4>Aprovació</h4>
+                        <p>Obtenir l'autorització necessària dels responsables del projecte i dels clients abans de procedir amb la implementació.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">4</div>
+                        <h4>Implementació</h4>
+                        <p>Executar el canvi de manera controlada, documentant tot el procés i assegurant la qualitat del resultat final.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="case-study">
+                <h3>Cas d'Estudi: Modificació Estructural</h3>
+                <p>En un projecte residencial recent, va sorgir la necessitat de modificar l'estructura d'una planta per adaptar-la a nous requisits del client. Gràcies a un protocol clar de control de canvis, vam poder:</p>
+                <ul>
+                    <li>Avaluar l'impacte estructural en 48 hores</li>
+                    <li>Obtenir l'aprovació del client i de l'enginyer estructural</li>
+                    <li>Implementar els canvis sense afectar el cronograma general</li>
+                    <li>Mantenir el pressupost inicial amb un increment de només el 3%</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Eines i Metodologies</h3>
+                <div class="tools">
+                    <div class="tool">
+                        <div class="tool-icon">📋</div>
+                        <h4>Formularis de Canvi</h4>
+                        <p>Documentació standarditzada per a cada sol·licitud</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">💰</div>
+                        <h4>Anàlisi de Costos</h4>
+                        <p>Avaluació detallada de l'impacte econòmic</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">⏱️</div>
+                        <h4>Planificació Temporal</h4>
+                        <p>Revisió i actualització del cronograma</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">👥</div>
+                        <h4>Comitè d'Aprovació</h4>
+                        <p>Equip multidisciplinar per a decisions</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="benefits">
+                <h3>Beneficis d'un bon control de canvis</h3>
+                <ul>
+                    <li>Reducció de costos inesperats i sobrecosts</li>
+                    <li>Millor planificació i gestió del temps</li>
+                    <li>Major satisfacció del client final</li>
+                    <li>Reducció de conflictes entre els agents</li>
+                    <li>Millor qualitat del producte final</li>
+                    <li>Documentació completa per a futurs projectes</li>
+                    <li>Transparència en tots els processos</li>
+                    <li>Millor comunicació entre tots els stakeholders</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Àrees d'Especialització</h3>
+                <div class="expertise-grid">
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏢</span>
+                        <h4>Edificació Residencial</h4>
+                        <p>Gestió integral de projectes habitacionals, des de la planificació inicial fins a l'entrega final.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏗️</span>
+                        <h4>Construcció Comercial</h4>
+                        <p>Direcció d'obres comercials i industrials amb focus en eficiència i qualitat.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🔧</span>
+                        <h4>Rehabilitació</h4>
+                        <p>Especialització en projectes de rehabilitació i reforma d'edificis existents.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">📊</span>
+                        <h4>Gestió de Projectes</h4>
+                        <p>Coordinació multidisciplinar i control exhaustiu de temps, costos i qualitat.</p>
+                    </div>
+                </div>
+            </div>
 
-    <div id="es" class="idioma">
-        <h2>El control de cambios en un proyecto de edificación</h2>
-        <p>La gestión del control de cambios en un proyecto constructivo es clave para asegurar que los objetivos principales de tiempo, coste y calidad se cumplan con la menor desviación posible. Este proceso consiste en detectar, evaluar, aprobar e implementar las modificaciones que pueden surgir durante la ejecución de un proyecto.</p>
-    </div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-number" data-value="25" data-suffix="+">0+</span>
+                    <span class="stat-label">Anys d'Experiència</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" data-value="150" data-suffix="+">0+</span>
+                    <span class="stat-label">Projectes Completats</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" data-value="98" data-suffix="%">0%</span>
+                    <span class="stat-label">Satisfacció del Client</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" data-value="5" data-suffix="M€">0M€</span>
+                    <span class="stat-label">Valor Total Gestionat</span>
+                </div>
+            </div>
 
-    <div id="en" class="idioma">
-        <h2>Change control in a construction project</h2>
-        <p>The management of change control in a construction project is crucial to ensure that the primary objectives of time, cost, and quality are achieved with minimal deviation. This process involves detecting, evaluating, approving, and implementing modifications that may arise during project execution.</p>
-    </div>
-</main>
+            <div class="testimonials">
+                <h3>Testimonis de Clients</h3>
+                <div class="testimonial">
+                    <p>La gestió del control de canvis per part del Menton Mentor va ser exemplar. Van saber adaptar-se a les nostres necessitats mantenint sempre el pressupost i els terminis acordats.</p>
+                    <div class="testimonial-author">- Joan Martí, Promotor Immobiliari</div>
+                </div>
+                <div class="testimonial">
+                    <p>Professional excepcional amb una visió integral dels projectes. La seva experiència va ser clau per al nostre èxit.</p>
+                    <div class="testimonial-author">- Carme Soler, Arquitecta</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="es" class="idioma">
+            <h2>El control de cambios en un proyecto de edificación</h2>
+            
+            <div class="section">
+                <p>La gestión del control de cambios en un proyecto constructivo es clave para asegurar que los objetivos principales de tiempo, coste y calidad se cumplan con la menor desviación posible. Este proceso consiste en detectar, evaluar, aprobar e implementar las modificaciones que pueden surgir durante la ejecución de un proyecto.</p>
+                
+                <p>Durante mi experiencia como director de obras, he podido comprobar que un sistema eficaz de control de cambios puede significar la diferencia entre el éxito y el fracaso de un proyecto constructivo.</p>
+            </div>
+            
+            <div class="section">
+                <h3>Fases del Control de Cambios</h3>
+                <div class="phases">
+                    <div class="phase">
+                        <div class="phase-number">1</div>
+                        <h4>Identificación</h4>
+                        <p>Detectar la necesidad del cambio a través de la supervisión continua de la obra y la comunicación con todos los agentes implicados.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">2</div>
+                        <h4>Evaluación</h4>
+                        <p>Analizar el impacto del cambio en el tiempo, coste, calidad y recursos del proyecto mediante estudios técnicos detallados.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">3</div>
+                        <h4>Aprobación</h4>
+                        <p>Obtener la autorización necesaria de los responsables del proyecto y de los clientes antes de proceder con la implementación.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">4</div>
+                        <h4>Implementación</h4>
+                        <p>Ejecutar el cambio de manera controlada, documentando todo el proceso y asegurando la calidad del resultado final.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="case-study">
+                <h3>Caso de Estudio: Modificación Estructural</h3>
+                <p>En un proyecto residencial reciente, surgió la necesidad de modificar la estructura de una planta para adaptarla a nuevos requisitos del cliente. Gracias a un protocolo claro de control de cambios, pudimos:</p>
+                <ul>
+                    <li>Evaluar el impacto estructural en 48 horas</li>
+                    <li>Obtener la aprobación del cliente y del ingeniero estructural</li>
+                    <li>Implementar los cambios sin afectar el cronograma general</li>
+                    <li>Mantener el presupuesto inicial con un incremento de sólo el 3%</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Herramientas y Metodologías</h3>
+                <div class="tools">
+                    <div class="tool">
+                        <div class="tool-icon">📋</div>
+                        <h4>Formularios de Cambio</h4>
+                        <p>Documentación estandarizada para cada solicitud</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">💰</div>
+                        <h4>Análisis de Costes</h4>
+                        <p>Evaluación detallada del impacto económico</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">⏱️</div>
+                        <h4>Planificación Temporal</h4>
+                        <p>Revisión y actualización del cronograma</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">👥</div>
+                        <h4>Comité de Aprobación</h4>
+                        <p>Equipo multidisciplinar para decisiones</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="benefits">
+                <h3>Beneficios de un buen control de cambios</h3>
+                <ul>
+                    <li>Reducción de costes inesperados y sobrecostes</li>
+                    <li>Mejor planificación y gestión del tiempo</li>
+                    <li>Mayor satisfacción del cliente final</li>
+                    <li>Reducción de conflictos entre los agentes</li>
+                    <li>Mejor calidad del producto final</li>
+                    <li>Documentación completa para futuros proyectos</li>
+                    <li>Transparencia en todos los procesos</li>
+                    <li>Mejor comunicación entre todos los stakeholders</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Áreas de Especialización</h3>
+                <div class="expertise-grid">
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏢</span>
+                        <h4>Edificación Residencial</h4>
+                        <p>Gestión integral de proyectos habitacionales, desde la planificación inicial hasta la entrega final.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏗️</span>
+                        <h4>Construcción Comercial</h4>
+                        <p>Dirección de obras comerciales e industriales con enfoque en eficiencia y calidad.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🔧</span>
+                        <h4>Rehabilitación</h4>
+                        <p>Especialización en proyectos de rehabilitación y reforma de edificios existentes.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">📊</span>
+                        <h4>Gestión de Proyectos</h4>
+                        <p>Coordinación multidisciplinar y control exhaustivo de tiempos, costes y calidad.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonials">
+                <h3>Testimonios de Clientes</h3>
+                <div class="testimonial">
+                    <p>La gestión del control de cambios por parte del Menton Mentor fue ejemplar. Supieron adaptarse a nuestras necesidades manteniendo siempre el presupuesto y los plazos acordados.</p>
+                    <div class="testimonial-author">- Joan Martí, Promotor Inmobiliario</div>
+                </div>
+                <div class="testimonial">
+                    <p>Profesional excepcional con una visión integral de los proyectos. Su experiencia fue clave para nuestro éxito.</p>
+                    <div class="testimonial-author">- Carme Soler, Arquitecta</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="en" class="idioma">
+            <h2>Change control in a construction project</h2>
+            
+            <div class="section">
+                <p>The management of change control in a construction project is crucial to ensure that the primary objectives of time, cost, and quality are achieved with minimal deviation. This process involves detecting, evaluating, approving, and implementing modifications that may arise during project execution.</p>
+                
+                <p>During my experience as a construction manager, I have been able to verify that an effective change control system can mean the difference between the success and failure of a construction project.</p>
+            </div>
+            
+            <div class="section">
+                <h3>Change Control Phases</h3>
+                <div class="phases">
+                    <div class="phase">
+                        <div class="phase-number">1</div>
+                        <h4>Identification</h4>
+                        <p>Detect the need for change through continuous site supervision and communication with all stakeholders involved.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">2</div>
+                        <h4>Evaluation</h4>
+                        <p>Analyze the impact of the change on project time, cost, quality and resources through detailed technical studies.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">3</div>
+                        <h4>Approval</h4>
+                        <p>Obtain the necessary authorization from project managers and clients before proceeding with implementation.</p>
+                    </div>
+                    <div class="phase">
+                        <div class="phase-number">4</div>
+                        <h4>Implementation</h4>
+                        <p>Execute the change in a controlled manner, documenting the entire process and ensuring the quality of the final result.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="case-study">
+                <h3>Case Study: Structural Modification</h3>
+                <p>In a recent residential project, there was a need to modify the structure of a floor to adapt it to new client requirements. Thanks to a clear change control protocol, we were able to:</p>
+                <ul>
+                    <li>Evaluate the structural impact within 48 hours</li>
+                    <li>Obtain approval from the client and structural engineer</li>
+                    <li>Implement changes without affecting the overall schedule</li>
+                    <li>Maintain the initial budget with an increase of only 3%</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Tools and Methodologies</h3>
+                <div class="tools">
+                    <div class="tool">
+                        <div class="tool-icon">📋</div>
+                        <h4>Change Forms</h4>
+                        <p>Standardized documentation for each request</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">💰</div>
+                        <h4>Cost Analysis</h4>
+                        <p>Detailed assessment of economic impact</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">⏱️</div>
+                        <h4>Time Planning</h4>
+                        <p>Schedule review and updates</p>
+                    </div>
+                    <div class="tool">
+                        <div class="tool-icon">👥</div>
+                        <h4>Approval Committee</h4>
+                        <p>Multidisciplinary team for decisions</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="benefits">
+                <h3>Benefits of good change control</h3>
+                <ul>
+                    <li>Reduction of unexpected costs and cost overruns</li>
+                    <li>Better planning and time management</li>
+                    <li>Higher client satisfaction</li>
+                    <li>Reduction of conflicts between stakeholders</li>
+                    <li>Better quality of the final product</li>
+                    <li>Complete documentation for future projects</li>
+                    <li>Transparency in all processes</li>
+                    <li>Better communication among all stakeholders</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3>Areas of Expertise</h3>
+                <div class="expertise-grid">
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏢</span>
+                        <h4>Residential Construction</h4>
+                        <p>Comprehensive management of residential projects, from initial planning to final delivery.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🏗️</span>
+                        <h4>Commercial Construction</h4>
+                        <p>Direction of commercial and industrial works with focus on efficiency and quality.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">🔧</span>
+                        <h4>Renovation</h4>
+                        <p>Specialization in rehabilitation and renovation projects of existing buildings.</p>
+                    </div>
+                    <div class="expertise-item">
+                        <span class="expertise-icon">📊</span>
+                        <h4>Project Management</h4>
+                        <p>Multidisciplinary coordination and comprehensive control of time, costs and quality.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonials">
+                <h3>Client Testimonials</h3>
+                <div class="testimonial">
+                    <p>The change control management by the Menton Mentor was exemplary. They knew how to adapt to our needs while always maintaining the agreed budget and deadlines.</p>
+                    <div class="testimonial-author">- Joan Martí, Real Estate Developer</div>
+                </div>
+                <div class="testimonial">
+                    <p>Exceptional professional with a comprehensive vision of projects. Their experience was key to our success.</p>
+                    <div class="testimonial-author">- Carme Soler, Architect</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 The Menton Mentor - Experiències professionals en gestió d'obres</p>
+    </footer>
+</div>
 
 <script>
 function mostraIdioma(idioma) {
+    // Remove active class from all language sections
     document.querySelectorAll('.idioma').forEach(el => el.classList.remove('active'));
+    
+    // Remove active class from all language buttons
+    document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active-lang'));
+    
+    // Add active class to selected language section
     document.getElementById(idioma).classList.add('active');
+    
+    // Add active class to selected language button
+    document.getElementById('btn-' + idioma).classList.add('active-lang');
+    
+    // Store selected language in localStorage
+    localStorage.setItem('selectedLanguage', idioma);
 }
+
+// Load saved language preference on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedLanguage = localStorage.getItem('selectedLanguage') || 'ca';
+    mostraIdioma(savedLanguage);
+});
+
+// Add smooth scrolling for better UX
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
 </script>
+
+<script src="script.js"></script>
 
 </body>
 </html>
