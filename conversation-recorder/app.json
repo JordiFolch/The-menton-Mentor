@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Conversation Recorder",
+    "slug": "conversation-recorder",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.conversationrecorder.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "L'app necessita accés al micròfon per gravar converses.",
+        "NSSpeechRecognitionUsageDescription": "L'app necessita reconeixement de veu per transcriure converses."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.conversationrecorder.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-voice/voice"
+    ],
+    "scheme": "conversation-recorder",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
