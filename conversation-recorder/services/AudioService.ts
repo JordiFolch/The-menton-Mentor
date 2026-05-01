@@ -12,6 +12,10 @@ export async function requestAudioPermissions(): Promise<boolean> {
 export async function startRecording(
   onAmplitude: (amp: number) => void
 ): Promise<void> {
+  if (amplitudeInterval) {
+    clearInterval(amplitudeInterval);
+    amplitudeInterval = null;
+  }
   amplitudeCallback = onAmplitude;
 
   await Audio.setAudioModeAsync({

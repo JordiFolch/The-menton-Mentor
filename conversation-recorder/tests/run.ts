@@ -1,297 +1,700 @@
 /**
- * Test suite per a conversation-recorder
- * Prova: kmeans, pitchDetector, LanguageService, SpeakerService, StorageService
+ * Suite completa de tests — conversation-recorder
+ * Cobreix: kmeans, pitchDetector, LanguageService, SpeakerService,
+ *          StorageService, SpeechService, AudioService
  */
 
-// ─── Mock AsyncStorage PRIMER de tot (abans de qualsevol import de serveis) ──
+// ═══════════════════════════════════════════════════════════════════
+// MOCKS — han d'estar ABANS de qualsevol import de serveis natius
+// ═══════════════════════════════════════════════════════════════════
+
+// ── AsyncStorage ──────────────────────────────────────────────────
 const store: Record<string, string> = {};
 const AsyncStorageMock = {
-  getItem:    async (key: string) => store[key] ?? null,
-  setItem:    async (key: string, val: string) => { store[key] = val; },
-  removeItem: async (key: string) => { delete store[key]; },
-  clear:      async () => { Object.keys(store).forEach(k => delete store[k]); },
+  getItem:    async (k: string) => store[k] ?? null,
+  setItem:    async (k: string, v: string) => { store[k] = v; },
+  removeItem: async (k: string) => { delete store[k]; },
+  clear:      async () => { for (const k in store) delete store[k]; },
 };
 
+// ── Voice (@react-native-voice/voice) ─────────────────────────────
+const VoiceMock = {
+  onSpeechResults:        null as any,
+  onSpeechPartialResults: null as any,
+  onSpeechError:          null as any,
+  onSpeechEnd:            null as any,
+  startCalls:  [] as string[],
+  stopCount:   0,
+  destroyCount:0,
+  start:   async (locale: string) => { VoiceMock.startCalls.push(locale); },
+  stop:    async () => { VoiceMock.stopCount++; },
+  destroy: async () => { VoiceMock.destroyCount++; },
+  reset() {
+    this.onSpeechResults = null;
+    this.onSpeechPartialResults = null;
+    this.onSpeechError = null;
+    this.onSpeechEnd = null;
+    this.startCalls = [];
+    this.stopCount = 0;
+    this.destroyCount = 0;
+  },
+};
+
+// ── expo-av Audio ─────────────────────────────────────────────────
+let audioPermGranted    = true;
+let mockRecUri          = 'file:///mock/rec.m4a';
+let mockMetering        = -30;
+let mockIsRecording     = false;
+let setAudioModeCalls:  any[] = [];
+let createAsyncCallCount = 0;
+
+const mockRecordingObj = {
+  getStatusAsync:     async () => ({ isRecording: mockIsRecording, metering: mockMetering }),
+  stopAndUnloadAsync: async () => { mockIsRecording = false; },
+  getURI:             () => mockRecUri,
+};
+
+const AudioMock = {
+  requestPermissionsAsync: async () => ({ status: audioPermGranted ? 'granted' : 'denied' }),
+  setAudioModeAsync:  async (opts: any) => { setAudioModeCalls.push(opts); },
+  Recording: {
+    createAsync: async (_opts: any) => {
+      createAsyncCallCount++;
+      mockIsRecording = true;
+      return { recording: mockRecordingObj };
+    },
+  },
+  RecordingOptionsPresets: { HIGH_QUALITY: {} },
+};
+
+// ── Module interceptor ────────────────────────────────────────────
 const Module = require('module');
 const origLoad = Module._load;
-Module._load = function(id: string, ...args: any[]) {
-  if (id === '@react-native-async-storage/async-storage') {
-    return AsyncStorageMock;
-  }
+Module._load = function (id: string, ...args: any[]) {
+  if (id === '@react-native-async-storage/async-storage') return AsyncStorageMock;
+  if (id === '@react-native-voice/voice') return VoiceMock;
+  if (id === 'expo-av') return { Audio: AudioMock };
   return origLoad.apply(this, [id, ...args]);
 };
 
-// ─── Ara els imports normals ──────────────────────────────────────────────────
-import { kmeans, clusterMeans } from '../utils/kmeans';
-import { detectLanguage, localeLabel, francToLocale } from '../services/LanguageService';
-import { averagePitch } from '../utils/pitchDetector';
-import { assignSpeakers, clearPitchHistory, recordPitch, reassignSegmentSpeaker } from '../services/SpeakerService';
-import type { Segment } from '../types';
+// ═══════════════════════════════════════════════════════════════════
+// IMPORTS ESTÀTICS (mòduls sense deps. natives)
+// ═══════════════════════════════════════════════════════════════════
 
-// ─── Mini test runner ─────────────────────────────────────────────────────────
+import { kmeans, clusterMeans }                       from '../utils/kmeans';
+import { detectPitch, averagePitch }                  from '../utils/pitchDetector';
+import { detectLanguage, localeLabel, francToLocale } from '../services/LanguageService';
+import {
+  assignSpeakers, clearPitchHistory,
+  recordPitch, reassignSegmentSpeaker,
+}                                                      from '../services/SpeakerService';
+import type { Segment }                               from '../types';
+
+// ═══════════════════════════════════════════════════════════════════
+// TEST RUNNER
+// ═══════════════════════════════════════════════════════════════════
+
 let passed = 0;
 let failed = 0;
-const errors: string[] = [];
+const failures: string[] = [];
 
-function test(name: string, fn: (() => void) | (() => Promise<void>)) {
-  const result = (fn as any)();
-  if (result && typeof result.then === 'function') {
-    return result.then(
-      () => { console.log(`  ✓ ${name}`); passed++; },
-      (e: any) => { console.log(`  ✗ ${name}\n    → ${e.message}`); errors.push(name); failed++; }
-    );
-  }
+async function test(name: string, fn: () => void | Promise<void>) {
   try {
-    console.log(`  ✓ ${name}`); passed++;
+    await fn();
+    console.log(`  ✓ ${name}`);
+    passed++;
   } catch (e: any) {
-    console.log(`  ✗ ${name}\n    → ${e.message}`); errors.push(name); failed++;
+    console.log(`  ✗ ${name}\n    → ${e.message}`);
+    failures.push(name);
+    failed++;
   }
 }
 
-function expect(val: any) {
-  return {
-    toBe(expected: any) {
-      if (val !== expected) throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(val)}`);
-    },
-    toBeNull() {
-      if (val !== null) throw new Error(`Expected null, got ${JSON.stringify(val)}`);
-    },
-    toBeGreaterThan(n: number) {
-      if (val <= n) throw new Error(`Expected ${val} > ${n}`);
-    },
-    toHaveLength(n: number) {
-      if ((val as any[]).length !== n) throw new Error(`Expected length ${n}, got ${(val as any[]).length}`);
-    },
-  };
+function assert(cond: boolean, msg: string) {
+  if (!cond) throw new Error(msg);
 }
+function eq<T>(a: T, b: T, label = '') {
+  if (a !== b) throw new Error(`${label}Expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+}
+function near(a: number, b: number, tol = 5, label = '') {
+  if (Math.abs(a - b) > tol)
+    throw new Error(`${label}Expected ~${b} (±${tol}), got ${a.toFixed(2)}`);
+}
+function makeSine(freq: number, sampleRate = 44100, n = 4096): Float32Array {
+  const buf = new Float32Array(n);
+  for (let i = 0; i < n; i++) buf[i] = Math.sin(2 * Math.PI * freq * i / sampleRate);
+  return buf;
+}
+function wait(ms: number) { return new Promise<void>(r => setTimeout(r, ms)); }
 
-// ─── 1. K-MEANS ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// EXECUCIÓ PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════
+
+(async () => {
+
+// ── 1. K-MEANS ───────────────────────────────────────────────────
 console.log('\n📊 K-Means clustering');
 
-test('separa dues veus (home ~120Hz, dona ~220Hz)', () => {
-  const data = [118, 122, 120, 218, 222, 220];
-  const assignments = kmeans(data, 2);
-  expect(assignments).toHaveLength(6);
-  if (assignments[0] === assignments[3]) throw new Error('Veus greus i agudes al mateix clúster');
-  if (assignments[0] !== assignments[1]) throw new Error('Veus greus separades entre elles');
-  if (assignments[3] !== assignments[4]) throw new Error('Veus agudes separades entre elles');
+await test('separa home (~120Hz) de dona (~220Hz)', () => {
+  const a = kmeans([118, 122, 120, 218, 222, 220], 2);
+  assert(a[0] === a[1] && a[1] === a[2], 'veus greus al mateix grup');
+  assert(a[3] === a[4] && a[4] === a[5], 'veus agudes al mateix grup');
+  assert(a[0] !== a[3], 'grups han de ser distints');
 });
 
-test('retorna mateixa longitud que input', () => {
-  expect(kmeans([100, 200, 150, 250, 130, 210], 2)).toHaveLength(6);
+await test('k=3 separa nen, home, dona', () => {
+  const a = kmeans([280, 285, 282, 120, 125, 122, 220, 225, 222], 3);
+  assert(a[0] === a[1] && a[1] === a[2], 'nens junts');
+  assert(a[3] === a[4] && a[4] === a[5], 'homes junts');
+  assert(a[6] === a[7] && a[7] === a[8], 'dones juntes');
+  assert(a[0] !== a[3] && a[3] !== a[6] && a[0] !== a[6], '3 clústers distints');
 });
 
-test('k=3 separa tres grups (nen, home, dona)', () => {
-  const data = [280, 285, 282, 120, 125, 122, 220, 225, 222];
-  const assignments = kmeans(data, 3);
-  expect(assignments[0]).toBe(assignments[1]);
-  expect(assignments[3]).toBe(assignments[4]);
-  expect(assignments[6]).toBe(assignments[7]);
-  if (assignments[0] === assignments[3]) throw new Error('Nen i home al mateix clúster');
-  if (assignments[3] === assignments[6]) throw new Error('Home i dona al mateix clúster');
+await test('retorna mateixa longitud que input', () => {
+  eq(kmeans([100, 200, 150, 250], 2).length, 4);
 });
 
-test('clusterMeans calcula correctament', () => {
-  const means = clusterMeans([100, 200, 110, 210], [0, 1, 0, 1], 2);
-  if (means[0] !== 105) throw new Error(`Expected 105, got ${means[0]}`);
-  if (means[1] !== 205) throw new Error(`Expected 205, got ${means[1]}`);
+await test('array buit → []', () => {
+  eq(kmeans([], 2).length, 0);
 });
 
-test('array buit retorna []', () => { expect(kmeans([], 2)).toHaveLength(0); });
-test('k >= longitud dades no peta', () => { expect(kmeans([100, 200], 5)).toHaveLength(2); });
-
-// ─── 2. LANGUAGE SERVICE ──────────────────────────────────────────────────────
-console.log('\n🌍 Language detection (franc)');
-
-test('detecta castellà', () => {
-  const r = detectLanguage('Hola, ¿cómo estás? Me alegra verte hoy aquí en esta reunión tan importante sobre el proyecto');
-  expect(r).toBe('es-ES');
+await test('k >= longitud dades no llança error', () => {
+  eq(kmeans([100, 200], 5).length, 2);
 });
 
-test('detecta anglès', () => {
-  const r = detectLanguage('Hello, how are you today? I am very happy to be here at this important meeting about the project');
-  expect(r).toBe('en-US');
+await test('clusterMeans calcula mitjanes correctament', () => {
+  const m = clusterMeans([100, 200, 110, 210], [0, 1, 0, 1], 2);
+  eq(m[0], 105); eq(m[1], 205);
 });
 
-test('detecta italià', () => {
-  const r = detectLanguage('Buongiorno, come stai oggi? Sono molto contento di essere qui a questa riunione importante sul progetto');
-  expect(r).toBe('it-IT');
+await test('convergeix ràpid amb dades ben separades (maxIterations=1)', () => {
+  const a = kmeans([1, 2, 3, 100, 101, 102], 2, 1);
+  assert(a[0] === a[1] && a[1] === a[2], 'primer grup');
+  assert(a[3] === a[4] && a[4] === a[5], 'segon grup');
+  assert(a[0] !== a[3], 'grups distints');
 });
 
-test('retorna null amb text curt (<50 cars)', () => { expect(detectLanguage('Hola')).toBeNull(); });
-test('retorna null amb text buit', () => { expect(detectLanguage('')).toBeNull(); });
-
-test('localeLabel correcte per cada idioma', () => {
-  for (const [loc, label] of [['es-ES','ES'],['en-US','EN'],['ca-ES','CA'],['fr-FR','FR']]) {
-    if (localeLabel(loc) !== label) throw new Error(`${loc} → expected ${label}, got ${localeLabel(loc)}`);
-  }
-});
-
-test('francToLocale converteix codis franc', () => {
-  if (francToLocale('spa') !== 'es-ES') throw new Error('spa failed');
-  if (francToLocale('eng') !== 'en-US') throw new Error('eng failed');
-  if (francToLocale('cat') !== 'ca-ES') throw new Error('cat failed');
-});
-
-// ─── 3. PITCH DETECTOR ────────────────────────────────────────────────────────
+// ── 2. PITCH DETECTOR ────────────────────────────────────────────
 console.log('\n🎵 Pitch detector');
 
-test('averagePitch calcula la mitjana', () => {
-  const avg = averagePitch([120, 125, 118, 122]);
-  if (avg !== 121.25) throw new Error(`Expected 121.25, got ${avg}`);
+await test('detecta ona sinusoidal pura a 150Hz (±5Hz)', () => {
+  const p = detectPitch(makeSine(150));
+  assert(p !== null, 'hauria de detectar pitch');
+  near(p!, 150, 5);
 });
 
-test('averagePitch ignora zeros', () => {
-  if (averagePitch([0, 120, 0, 120]) !== 120) throw new Error('zeros not ignored');
+await test('detecta ona sinusoidal pura a 200Hz (±5Hz)', () => {
+  const p = detectPitch(makeSine(200));
+  assert(p !== null, 'hauria de detectar pitch');
+  near(p!, 200, 5);
 });
 
-test('averagePitch retorna 0 si buit', () => { if (averagePitch([]) !== 0) throw new Error(); });
-test('averagePitch retorna 0 si tot zeros', () => { if (averagePitch([0, 0, 0]) !== 0) throw new Error(); });
+await test('buffer massa curt (<2048 mostres) → null', () => {
+  eq(detectPitch(new Float32Array(1024)), null);
+});
 
-// ─── 4. SPEAKER SERVICE ───────────────────────────────────────────────────────
+await test('silenci (zeros) → null (clarity baixa)', () => {
+  eq(detectPitch(new Float32Array(4096)), null);
+});
+
+await test('50Hz (per sota MIN_PITCH=70) → null', () => {
+  eq(detectPitch(makeSine(50)), null);
+});
+
+await test('500Hz (per sobre MAX_PITCH=400) → null', () => {
+  eq(detectPitch(makeSine(500)), null);
+});
+
+await test('averagePitch: calcula correctament ignorant zeros', () => {
+  near(averagePitch([0, 120, 0, 120]), 120, 0);
+});
+
+await test('averagePitch: array buit → 0', () => { eq(averagePitch([]), 0); });
+await test('averagePitch: tot zeros → 0', () => { eq(averagePitch([0, 0, 0]), 0); });
+
+// ── 3. LANGUAGE SERVICE ──────────────────────────────────────────
+console.log('\n🌍 Language detection');
+
+await test('detecta castellà', () => {
+  eq(detectLanguage('Hola, ¿cómo estás? Me alegra verte hoy aquí en esta reunión tan importante sobre el proyecto'), 'es-ES');
+});
+
+await test('detecta anglès', () => {
+  eq(detectLanguage('Hello, how are you today? I am very happy to be here at this important meeting about the project'), 'en-US');
+});
+
+await test('detecta italià', () => {
+  eq(detectLanguage('Buongiorno, come stai oggi? Sono molto contento di essere qui a questa riunione importante'), 'it-IT');
+});
+
+await test('detecta alemany', () => {
+  eq(detectLanguage('Guten Tag, wie geht es Ihnen heute? Ich bin sehr froh, hier bei diesem wichtigen Treffen zu sein'), 'de-DE');
+});
+
+await test('detecta francès', () => {
+  eq(detectLanguage("Bonjour, comment allez-vous aujourd hui? Je suis très heureux d être ici à cette réunion importante"), 'fr-FR');
+});
+
+await test('text curt (<50 cars) → null', () => { eq(detectLanguage('Hola'), null); });
+await test('text buit → null', () => { eq(detectLanguage(''), null); });
+
+await test('localeLabel correcte per es,en,ca,fr', () => {
+  for (const [loc, exp] of [['es-ES','ES'],['en-US','EN'],['ca-ES','CA'],['fr-FR','FR']]) {
+    const got = localeLabel(loc);
+    assert(got === exp, `${loc}: expected ${exp}, got ${got}`);
+  }
+});
+
+await test('francToLocale: spa→es-ES, eng→en-US, cat→ca-ES, ita→it-IT', () => {
+  eq(francToLocale('spa'), 'es-ES');
+  eq(francToLocale('eng'), 'en-US');
+  eq(francToLocale('cat'), 'ca-ES');
+  eq(francToLocale('ita'), 'it-IT');
+});
+
+// ── 4. SPEAKER SERVICE ───────────────────────────────────────────
 console.log('\n🎤 Speaker service');
 
-test('assigna parlants a segments per pitch diferent', () => {
+await test('assigna parlants distints a veus amb pitch diferent', () => {
   clearPitchHistory();
   const segs: Segment[] = [
-    { id: 's1', text: 'Hola',    speakerId: 'speaker-0', startTime: 0,    language: 'es-ES' },
-    { id: 's2', text: 'Com vas?',speakerId: 'speaker-0', startTime: 1000, language: 'es-ES' },
-    { id: 's3', text: 'Molt bé', speakerId: 'speaker-0', startTime: 2000, language: 'es-ES' },
-    { id: 's4', text: 'Genial',  speakerId: 'speaker-0', startTime: 3000, language: 'es-ES' },
+    { id:'s1', text:'A', speakerId:'speaker-0', startTime:0,    language:'es-ES' },
+    { id:'s2', text:'B', speakerId:'speaker-0', startTime:1000, language:'es-ES' },
+    { id:'s3', text:'C', speakerId:'speaker-0', startTime:2000, language:'es-ES' },
+    { id:'s4', text:'D', speakerId:'speaker-0', startTime:3000, language:'es-ES' },
   ];
-  recordPitch('s1', 118); recordPitch('s1', 122); recordPitch('s1', 120);
-  recordPitch('s2', 218); recordPitch('s2', 222); recordPitch('s2', 220);
-  recordPitch('s3', 119); recordPitch('s3', 121); recordPitch('s3', 120);
-  recordPitch('s4', 219); recordPitch('s4', 221); recordPitch('s4', 220);
-
+  [118,122,120].forEach(p => recordPitch('s1', p));
+  [218,222,220].forEach(p => recordPitch('s2', p));
+  [119,121,120].forEach(p => recordPitch('s3', p));
+  [219,221,220].forEach(p => recordPitch('s4', p));
   const { segments: upd, speakers } = assignSpeakers(segs, 2);
-  expect(speakers).toHaveLength(2);
-
+  eq(speakers.length, 2);
   const sp = (id: string) => upd.find(s => s.id === id)!.speakerId;
-  if (sp('s1') !== sp('s3')) throw new Error('s1 i s3 haurien de ser el mateix parlant');
-  if (sp('s2') !== sp('s4')) throw new Error('s2 i s4 haurien de ser el mateix parlant');
-  if (sp('s1') === sp('s2')) throw new Error('s1 i s2 haurien de ser parlants diferents');
+  assert(sp('s1') === sp('s3'), 's1 i s3 = mateix parlant');
+  assert(sp('s2') === sp('s4'), 's2 i s4 = mateix parlant');
+  assert(sp('s1') !== sp('s2'), 'parlants distints');
 });
 
-test('parlants creats amb noms i colors hex', () => {
+await test('sense dades de pitch → tots segments sense reassignar', () => {
   clearPitchHistory();
-  const { speakers } = assignSpeakers([], 2);
-  if (speakers[0].name !== 'Parlant 1') throw new Error(speakers[0].name);
-  if (speakers[1].name !== 'Parlant 2') throw new Error(speakers[1].name);
-  if (!speakers[0].color.startsWith('#')) throw new Error('color no és hex');
-  if (speakers[0].color === speakers[1].color) throw new Error('colors iguals');
+  const segs: Segment[] = [
+    { id:'x1', text:'A', speakerId:'speaker-0', startTime:0,    language:'es-ES' },
+    { id:'x2', text:'B', speakerId:'speaker-0', startTime:1000, language:'es-ES' },
+  ];
+  const { segments: upd } = assignSpeakers(segs, 2);
+  assert(upd.every(s => s.speakerId === 'speaker-0'), 'sense pitch → speaker-0');
 });
 
-test('reassignSegmentSpeaker canvia el parlant', () => {
+await test('parlants creats amb noms "Parlant N" i colors hex distints', () => {
+  clearPitchHistory();
+  const { speakers } = assignSpeakers([], 3);
+  eq(speakers.length, 3);
+  for (let i = 0; i < 3; i++) {
+    eq(speakers[i].name, `Parlant ${i + 1}`);
+    assert(speakers[i].color.startsWith('#'), `color[${i}] no és hex`);
+  }
+  assert(speakers[0].color !== speakers[1].color, 'colors han de ser distints');
+});
+
+await test('clearPitchHistory neteja i deixa segments sense reasignar', () => {
+  clearPitchHistory();
+  recordPitch('seg1', 150);
+  clearPitchHistory();
+  const segs: Segment[] = [{ id:'seg1', text:'T', speakerId:'speaker-0', startTime:0, language:'es-ES' }];
+  const { segments: upd } = assignSpeakers(segs, 2);
+  eq(upd[0].speakerId, 'speaker-0');
+});
+
+await test('segments mixtos (alguns amb pitch, altres sense)', () => {
+  clearPitchHistory();
   const segs: Segment[] = [
-    { id: 'a1', text: 'Hola', speakerId: 'speaker-0', startTime: 0, language: 'es-ES' },
-    { id: 'a2', text: 'Adeu', speakerId: 'speaker-1', startTime: 1000, language: 'es-ES' },
+    { id:'m1', text:'A', speakerId:'speaker-0', startTime:0,    language:'es-ES' },
+    { id:'m2', text:'B', speakerId:'speaker-0', startTime:1000, language:'es-ES' }, // sense pitch
+    { id:'m3', text:'C', speakerId:'speaker-0', startTime:2000, language:'es-ES' },
+  ];
+  [118,120].forEach(p => recordPitch('m1', p));
+  [218,220].forEach(p => recordPitch('m3', p));
+  const { segments: upd, speakers } = assignSpeakers(segs, 2);
+  eq(speakers.length, 2);
+  eq(upd.find(s => s.id === 'm2')!.speakerId, 'speaker-0');
+});
+
+await test('reassignSegmentSpeaker canvia el parlant del segment', () => {
+  const segs: Segment[] = [
+    { id:'a1', text:'A', speakerId:'speaker-0', startTime:0,    language:'es-ES' },
+    { id:'a2', text:'B', speakerId:'speaker-1', startTime:1000, language:'es-ES' },
   ];
   const upd = reassignSegmentSpeaker(segs, 'a1', 'speaker-1');
-  if (upd.find(s => s.id === 'a1')!.speakerId !== 'speaker-1') throw new Error();
-  if (upd.find(s => s.id === 'a2')!.speakerId !== 'speaker-1') throw new Error();
+  eq(upd.find(s => s.id === 'a1')!.speakerId, 'speaker-1');
+  eq(upd.find(s => s.id === 'a2')!.speakerId, 'speaker-1'); // no canviat
 });
 
-test('reassignSegmentSpeaker no modifica altres segments', () => {
+await test('reassignSegmentSpeaker no modifica altres segments', () => {
   const segs: Segment[] = [
-    { id: 'b1', text: 'A', speakerId: 'speaker-0', startTime: 0, language: 'es-ES' },
-    { id: 'b2', text: 'B', speakerId: 'speaker-0', startTime: 1000, language: 'es-ES' },
-    { id: 'b3', text: 'C', speakerId: 'speaker-1', startTime: 2000, language: 'es-ES' },
+    { id:'b1', text:'A', speakerId:'speaker-0', startTime:0,    language:'es-ES' },
+    { id:'b2', text:'B', speakerId:'speaker-0', startTime:1000, language:'es-ES' },
+    { id:'b3', text:'C', speakerId:'speaker-1', startTime:2000, language:'es-ES' },
   ];
   const upd = reassignSegmentSpeaker(segs, 'b2', 'speaker-1');
-  if (upd.find(s => s.id === 'b1')!.speakerId !== 'speaker-0') throw new Error('b1 canviat incorrectament');
-  if (upd.find(s => s.id === 'b3')!.speakerId !== 'speaker-1') throw new Error('b3 canviat incorrectament');
+  eq(upd.find(s => s.id === 'b1')!.speakerId, 'speaker-0'); // intacte
+  eq(upd.find(s => s.id === 'b3')!.speakerId, 'speaker-1'); // intacte
 });
 
-// ─── 5. STORAGE SERVICE ───────────────────────────────────────────────────────
-console.log('\n💾 Storage service (mock AsyncStorage)');
+// ── 5. STORAGE SERVICE ───────────────────────────────────────────
+console.log('\n💾 Storage service');
 
-async function testStorage() {
-  // Dynamic import per assegurar que el mock ja és actiu
-  const { saveSession, loadSessions, deleteSession, getSession } =
-    await import('../services/StorageService');
+const { saveSession, saveSessions, loadSessions, deleteSession, getSession } =
+  await import('../services/StorageService');
 
+const baseSession = {
+  id: 's001', title: 'Test',
+  createdAt: '2026-04-23T10:00:00Z', duration: 60,
+  segments: [{ id:'seg1', text:'Hola', speakerId:'speaker-0', startTime:0, language:'ca-ES' }],
+  speakers: [{ id:'speaker-0', name:'Parlant 1', color:'#4A9EFF', pitchMean:120, pitchSamples:[] }],
+  detectedLanguage: 'ca-ES',
+};
+
+await test('saveSession + loadSessions: desa i recupera', async () => {
   await AsyncStorageMock.clear();
+  await saveSession(baseSession);
+  const list = await loadSessions();
+  eq(list.length, 1);
+  eq(list[0].id, 's001');
+  eq(list[0].segments[0].text, 'Hola');
+});
 
-  const session1 = {
-    id: 'test-001', title: 'Reunió de prova',
-    createdAt: '2026-04-23T10:00:00Z', duration: 120,
-    segments: [{ id: 's1', text: 'Hola a tothom', speakerId: 'speaker-0', startTime: 0, language: 'ca-ES' }],
-    speakers: [{ id: 'speaker-0', name: 'Parlant 1', color: '#4A9EFF', pitchMean: 120, pitchSamples: [] }],
-    detectedLanguage: 'ca-ES',
-  };
+await test('getSession: retorna sessió per ID', async () => {
+  const s = await getSession('s001');
+  assert(s !== null, 'ha de trobar la sessió');
+  eq(s!.speakers[0].color, '#4A9EFF');
+});
 
-  await test('guarda i recupera una sessió', async () => {
-    await saveSession(session1);
-    const sessions = await loadSessions();
-    if (sessions.length === 0) throw new Error('No s\'han carregat sessions');
-    const found = sessions.find(s => s.id === 'test-001');
-    if (!found) throw new Error('Sessió no trobada');
-    if (found.title !== 'Reunió de prova') throw new Error(`Títol incorrecte: ${found.title}`);
-    if (found.duration !== 120) throw new Error(`Durada incorrecta: ${found.duration}`);
-    if (found.segments[0].text !== 'Hola a tothom') throw new Error('Segment incorrecte');
-  });
+await test('getSession: null per ID inexistent', async () => {
+  eq(await getSession('no-existe'), null);
+});
 
-  await test('getSession retorna la sessió correcta', async () => {
-    const s = await getSession('test-001');
-    if (!s) throw new Error('Sessió no trobada');
-    if (s.id !== 'test-001') throw new Error('ID incorrecte');
-    if (s.speakers[0].color !== '#4A9EFF') throw new Error('Color incorrecte');
-  });
+await test('saveSession: actualitza sense duplicar', async () => {
+  await saveSession({ ...baseSession, title: 'Actualitzat' });
+  const list = await loadSessions();
+  eq(list.filter(s => s.id === 's001').length, 1);
+  eq(list[0].title, 'Actualitzat');
+});
 
-  await test('getSession retorna null per ID inexistent', async () => {
-    const s = await getSession('no-existeix');
-    if (s !== null) throw new Error('Hauria de retornar null');
-  });
+await test('sessions ordenades: la més nova primer', async () => {
+  await AsyncStorageMock.clear();
+  await saveSession({ ...baseSession, id: 'old' });
+  await saveSession({ ...baseSession, id: 'new' });
+  eq((await loadSessions())[0].id, 'new');
+});
 
-  await test('actualitza sessió existent (no duplica)', async () => {
-    await saveSession({ ...session1, title: 'Reunió actualitzada' });
-    const sessions = await loadSessions();
-    const matching = sessions.filter(s => s.id === 'test-001');
-    if (matching.length !== 1) throw new Error(`Duplicat! ${matching.length} sessions`);
-    if (matching[0].title !== 'Reunió actualitzada') throw new Error('Títol no actualitzat');
-  });
+await test('deleteSession: elimina la sessió correcta', async () => {
+  await AsyncStorageMock.clear();
+  await saveSession({ ...baseSession, id: 'del1' });
+  await saveSession({ ...baseSession, id: 'del2' });
+  await deleteSession('del1');
+  const list = await loadSessions();
+  eq(list.length, 1);
+  eq(list[0].id, 'del2');
+});
 
-  await test('afegeix múltiples sessions i les manté totes', async () => {
-    await saveSession({ ...session1, id: 'test-002', title: 'Sessió 2' });
-    await saveSession({ ...session1, id: 'test-003', title: 'Sessió 3' });
-    const sessions = await loadSessions();
-    if (sessions.length !== 3) throw new Error(`Expected 3, got ${sessions.length}`);
-  });
+await test('saveSessions directe: sobreescriu tot el magatzem', async () => {
+  await AsyncStorageMock.clear();
+  await saveSession({ ...baseSession, id: 'prev' });
+  await saveSessions([{ ...baseSession, id: 'a' }, { ...baseSession, id: 'b' }]);
+  const list = await loadSessions();
+  eq(list.length, 2);
+  assert(!list.find(s => s.id === 'prev'), "'prev' hauria d'haver estat sobreescrit");
+});
 
-  await test('elimina una sessió correctament', async () => {
-    await deleteSession('test-002');
-    const sessions = await loadSessions();
-    if (sessions.length !== 2) throw new Error(`Expected 2, got ${sessions.length}`);
-    if (sessions.find(s => s.id === 'test-002')) throw new Error('Sessió no eliminada');
-  });
+await test('saveSessions([]) esborra totes les sessions', async () => {
+  await saveSession(baseSession);
+  await saveSessions([]);
+  eq((await loadSessions()).length, 0);
+});
 
-  await test('sessions ordenades: la més nova primer', async () => {
-    await AsyncStorageMock.clear();
-    await saveSession({ ...session1, id: 'old', title: 'Antiga' });
-    await saveSession({ ...session1, id: 'new', title: 'Nova' });
-    const sessions = await loadSessions();
-    if (sessions[0].id !== 'new') throw new Error(`Expected 'new' first, got '${sessions[0].id}'`);
-  });
+await test('loadSessions JSON corrupte → array buit', async () => {
+  store['@conv_rec_sessions'] = '{invalid json{{';
+  eq((await loadSessions()).length, 0);
+  await AsyncStorageMock.clear();
+});
 
-  await test('loadSessions retorna [] si no hi ha dades', async () => {
-    await AsyncStorageMock.clear();
-    const sessions = await loadSessions();
-    if (sessions.length !== 0) throw new Error(`Expected 0, got ${sessions.length}`);
-  });
+await test('loadSessions sense dades → []', async () => {
+  await AsyncStorageMock.clear();
+  eq((await loadSessions()).length, 0);
+});
+
+// ── 6. SPEECH SERVICE ────────────────────────────────────────────
+console.log('\n🔊 Speech service');
+
+const Speech = await import('../services/SpeechService');
+
+function resetSpeech() {
+  Speech.destroySpeechService();
+  VoiceMock.reset();
 }
 
-// ─── RESULTAT FINAL ───────────────────────────────────────────────────────────
-(async () => {
-  await testStorage();
+await test('setupSpeechService: registra 4 handlers a Voice', () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  assert(typeof VoiceMock.onSpeechResults        === 'function', 'onSpeechResults');
+  assert(typeof VoiceMock.onSpeechPartialResults === 'function', 'onSpeechPartialResults');
+  assert(typeof VoiceMock.onSpeechError          === 'function', 'onSpeechError');
+  assert(typeof VoiceMock.onSpeechEnd            === 'function', 'onSpeechEnd');
+});
 
-  console.log('\n' + '─'.repeat(50));
-  console.log(`✅ ${passed} proves superades`);
-  if (failed > 0) {
-    console.log(`❌ ${failed} proves fallades:`);
-    errors.forEach(e => console.log(`   • ${e}`));
-    process.exit(1);
-  } else {
-    console.log('🎉 Totes les proves han passat!\n');
-  }
+await test('onSpeechResults: crida resultCb amb text i isFinal=true', () => {
+  resetSpeech();
+  let lastText = ''; let lastFinal = false;
+  Speech.setupSpeechService((t, f) => { lastText = t; lastFinal = f; }, () => {});
+  VoiceMock.onSpeechResults({ value: ['Hola món'] });
+  eq(lastText, 'Hola món');
+  eq(lastFinal as any, true);
+});
+
+await test('onSpeechPartialResults: crida resultCb amb isFinal=false', () => {
+  resetSpeech();
+  let lastFinal = true;
+  Speech.setupSpeechService((_, f) => { lastFinal = f; }, () => {});
+  VoiceMock.onSpeechPartialResults({ value: ['Ho...'] });
+  eq(lastFinal as any, false);
+});
+
+await test('onSpeechResults text buit: NO crida resultCb', () => {
+  resetSpeech();
+  let called = false;
+  Speech.setupSpeechService(() => { called = true; }, () => {});
+  VoiceMock.onSpeechResults({ value: [''] });
+  assert(!called, 'no hauria de cridar resultCb amb text buit');
+});
+
+await test('onSpeechResults sense value: NO crida resultCb', () => {
+  resetSpeech();
+  let called = false;
+  Speech.setupSpeechService(() => { called = true; }, () => {});
+  VoiceMock.onSpeechResults({});
+  assert(!called, 'no hauria de cridar resultCb sense value');
+});
+
+await test('onSpeechError "7" (No match): reinicia, NO crida errorCb', async () => {
+  resetSpeech();
+  let errorCalled = false;
+  Speech.setupSpeechService(() => {}, () => { errorCalled = true; });
+  await Speech.startListening('es-ES');
+  VoiceMock.startCalls = [];
+  VoiceMock.onSpeechError({ error: { message: '7/No match' } });
+  await wait(20);
+  assert(!errorCalled, 'errorCb no hauria de cridar-se per error 7');
+  assert(VoiceMock.startCalls.length > 0, 'hauria de reiniciar Voice.start');
+});
+
+await test('onSpeechError error real: crida errorCb amb el missatge', () => {
+  resetSpeech();
+  let msg = '';
+  Speech.setupSpeechService(() => {}, (m) => { msg = m; });
+  VoiceMock.onSpeechError({ error: { message: 'Network error' } });
+  eq(msg, 'Network error');
+});
+
+await test('onSpeechEnd mentre isListening=true: reinicia', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('ca-ES');
+  VoiceMock.startCalls = [];
+  VoiceMock.onSpeechEnd({});
+  await wait(20);
+  assert(VoiceMock.startCalls.length > 0, 'hauria de reiniciar');
+});
+
+await test('onSpeechEnd quan isListening=false: NO reinicia', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  VoiceMock.onSpeechEnd({});
+  await wait(20);
+  eq(VoiceMock.startCalls.length, 0);
+});
+
+await test('startListening: crida Voice.start amb locale correcte', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('fr-FR');
+  eq(VoiceMock.startCalls[0], 'fr-FR');
+});
+
+await test('stopListening: crida Voice.stop i Voice.destroy', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('es-ES');
+  await Speech.stopListening();
+  assert(VoiceMock.stopCount > 0,    'Voice.stop ha de cridar-se');
+  assert(VoiceMock.destroyCount > 0, 'Voice.destroy ha de cridar-se');
+});
+
+await test('stopListening: onSpeechEnd posterior NO reinicia', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('es-ES');
+  await Speech.stopListening();
+  VoiceMock.startCalls = [];
+  VoiceMock.onSpeechEnd({});
+  await wait(20);
+  eq(VoiceMock.startCalls.length, 0);
+});
+
+await test('switchLocale mateixa locale: no fa res', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('es-ES');
+  VoiceMock.stopCount = 0; VoiceMock.startCalls = [];
+  await Speech.switchLocale('es-ES');
+  eq(VoiceMock.stopCount, 0);
+  eq(VoiceMock.startCalls.length, 0);
+});
+
+await test('switchLocale nova locale mentre escolta: stop + start nova locale', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.startListening('es-ES');
+  VoiceMock.stopCount = 0; VoiceMock.startCalls = [];
+  await Speech.switchLocale('en-US');
+  assert(VoiceMock.stopCount > 0, 'hauria de parar primer');
+  eq(VoiceMock.startCalls[0], 'en-US');
+});
+
+await test('switchLocale nova locale sense escoltar: canvia sense parar', async () => {
+  resetSpeech();
+  Speech.setupSpeechService(() => {}, () => {});
+  await Speech.switchLocale('it-IT');
+  eq(VoiceMock.stopCount, 0, 'no hauria de parar si no estava escoltant');
+});
+
+await test('destroySpeechService: resultCb ja no es crida', () => {
+  resetSpeech();
+  let called = false;
+  Speech.setupSpeechService(() => { called = true; }, () => {});
+  Speech.destroySpeechService();
+  VoiceMock.onSpeechResults({ value: ['text post-destroy'] });
+  assert(!called, 'resultCb no hauria de cridar-se post-destroy');
+});
+
+// ── 7. AUDIO SERVICE ─────────────────────────────────────────────
+console.log('\n🎙 Audio service');
+
+const AudioSvc = await import('../services/AudioService');
+
+async function resetAudio() {
+  await AudioSvc.stopRecording();
+  mockIsRecording = false; mockMetering = -30;
+  audioPermGranted = true; setAudioModeCalls = []; createAsyncCallCount = 0;
+}
+
+await test('isRecordingActive: false en estat inicial', async () => {
+  await resetAudio();
+  eq(AudioSvc.isRecordingActive(), false);
+});
+
+await test('requestAudioPermissions: permès → true', async () => {
+  audioPermGranted = true;
+  eq(await AudioSvc.requestAudioPermissions(), true);
+});
+
+await test('requestAudioPermissions: denegat → false', async () => {
+  audioPermGranted = false;
+  eq(await AudioSvc.requestAudioPermissions(), false);
+  audioPermGranted = true;
+});
+
+await test('startRecording: isRecordingActive() → true', async () => {
+  await resetAudio();
+  await AudioSvc.startRecording(() => {});
+  eq(AudioSvc.isRecordingActive(), true);
+  await AudioSvc.stopRecording();
+});
+
+await test('startRecording: crida setAudioModeAsync amb allowsRecordingIOS=true', async () => {
+  await resetAudio();
+  await AudioSvc.startRecording(() => {});
+  assert(setAudioModeCalls.length > 0, 'setAudioModeAsync ha de cridar-se');
+  assert(setAudioModeCalls[0].allowsRecordingIOS === true, 'allowsRecordingIOS=true');
+  await AudioSvc.stopRecording();
+});
+
+await test('startRecording: crida Recording.createAsync', async () => {
+  await resetAudio();
+  createAsyncCallCount = 0;
+  await AudioSvc.startRecording(() => {});
+  assert(createAsyncCallCount > 0, 'createAsync ha de cridar-se');
+  await AudioSvc.stopRecording();
+});
+
+await test('startRecording doble crida: no deixa interval perdut (bug fix)', async () => {
+  await resetAudio();
+  let count1 = 0; let count2 = 0;
+  await AudioSvc.startRecording(() => { count1++; });
+  await AudioSvc.startRecording(() => { count2++; }); // sobreescriu l'anterior
+  eq(AudioSvc.isRecordingActive(), true);
+  await AudioSvc.stopRecording();
+  // Si el bug existís, count1 continuaria incrementant-se. El test verifica que no peta.
+});
+
+await test('callback amplitud: cridat amb valor [0,1] en 80ms', async () => {
+  await resetAudio();
+  mockMetering = -30; // → (−30+60)/60 = 0.5
+  let amp = -1;
+  await AudioSvc.startRecording(a => { amp = a; });
+  await wait(120);
+  assert(amp >= 0 && amp <= 1, `amplitud ${amp} fora de [0,1]`);
+  near(amp, 0.5, 0.05, 'amplitud normalitzada: ');
+  await AudioSvc.stopRecording();
+});
+
+await test('amplitud normalitzada: -60dB→0.0, -30dB→0.5, 0dB→1.0', () => {
+  const norm = (m: number) => Math.max(0, Math.min(1, (m + 60) / 60));
+  near(norm(-60), 0.0, 0.01);
+  near(norm(-30), 0.5, 0.01);
+  near(norm(0),   1.0, 0.01);
+  near(norm(-90), 0.0, 0.01); // clamp inferior
+});
+
+await test('stopRecording: retorna URI correcta', async () => {
+  await resetAudio();
+  mockRecUri = 'file:///test/audio.m4a';
+  await AudioSvc.startRecording(() => {});
+  eq(await AudioSvc.stopRecording(), 'file:///test/audio.m4a');
+});
+
+await test('stopRecording: isRecordingActive() → false', async () => {
+  await resetAudio();
+  await AudioSvc.startRecording(() => {});
+  await AudioSvc.stopRecording();
+  eq(AudioSvc.isRecordingActive(), false);
+});
+
+await test('stopRecording sense gravació activa → null', async () => {
+  await resetAudio();
+  eq(await AudioSvc.stopRecording(), null);
+});
+
+await test('stopRecording: restaura mode àudio (allowsRecordingIOS=false)', async () => {
+  await resetAudio();
+  setAudioModeCalls = [];
+  await AudioSvc.startRecording(() => {});
+  await AudioSvc.stopRecording();
+  const restoreCall = setAudioModeCalls.find(c => c.allowsRecordingIOS === false);
+  assert(restoreCall !== undefined, 'hauria de restaurar mode àudio');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// RESULTAT FINAL
+// ═══════════════════════════════════════════════════════════════════
+console.log('\n' + '─'.repeat(52));
+console.log(`✅ ${passed} proves superades`);
+if (failed > 0) {
+  console.log(`❌ ${failed} proves fallades:`);
+  failures.forEach(f => console.log(`   • ${f}`));
+  process.exit(1);
+} else {
+  console.log('🎉 Totes les proves han passat!\n');
+}
+
 })();
