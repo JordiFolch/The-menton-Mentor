@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { theme } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Segment, Speaker, Session } from '../types';
 import {
   startRecording,
@@ -52,6 +54,7 @@ function generateTitle(): string {
 
 export default function RecordScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [isRecording, setIsRecording] = useState(false);
   const [amplitude, setAmplitude] = useState(0);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -118,6 +121,7 @@ export default function RecordScreen() {
 
   const handleToggleRecord = async () => {
     if (isRecording) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       await stopRecording();
       await stopListening();
       if (langCheckTimerRef.current) {
@@ -141,6 +145,7 @@ export default function RecordScreen() {
       await startRecording(setAmplitude);
       await startListening(locale);
 
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       langCheckTimerRef.current = setInterval(checkLanguage, LANG_CHECK_INTERVAL);
       setIsRecording(true);
     }
@@ -151,6 +156,7 @@ export default function RecordScreen() {
       router.back();
       return;
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsSaving(true);
     const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
     const session: Session = {
@@ -180,15 +186,17 @@ export default function RecordScreen() {
     ]);
   };
 
+  const s = makeStyles(colors);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.topBar}>
+    <View style={s.container}>
+      <View style={s.topBar}>
         <TouchableOpacity onPress={handleDiscard}>
-          <Text style={styles.topBtn}>Descartar</Text>
+          <Text style={s.topBtn}>Descartar</Text>
         </TouchableOpacity>
         <LanguageBadge locale={locale} />
         <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-          <Text style={[styles.topBtn, styles.topBtnSave]}>
+          <Text style={[s.topBtn, s.topBtnSave]}>
             {isSaving ? '...' : 'Guardar'}
           </Text>
         </TouchableOpacity>
@@ -196,26 +204,26 @@ export default function RecordScreen() {
 
       <ScrollView
         ref={scrollRef}
-        style={styles.transcript}
-        contentContainerStyle={styles.transcriptContent}
+        style={s.transcript}
+        contentContainerStyle={s.transcriptContent}
       >
         {segments.map((seg) => (
           <SpeakerBubble key={seg.id} segment={seg} speakers={speakers} />
         ))}
         {interimText ? (
-          <View style={styles.interimRow}>
-            <Text style={styles.interim}>{interimText}</Text>
+          <View style={s.interimRow}>
+            <Text style={s.interim}>{interimText}</Text>
           </View>
         ) : null}
       </ScrollView>
 
-      <View style={styles.controls}>
+      <View style={s.controls}>
         {isRecording && (
-          <Text style={styles.recordingLabel}>● GRAVANT</Text>
+          <Text style={s.recordingLabel}>● GRAVANT</Text>
         )}
         <WaveformVisualizer amplitude={amplitude} isRecording={isRecording} />
         <RecordButton isRecording={isRecording} onPress={handleToggleRecord} />
-        <Text style={styles.hint}>
+        <Text style={s.hint}>
           {isRecording ? 'Prem per aturar' : 'Prem per gravar'}
         </Text>
       </View>
@@ -223,11 +231,10 @@ export default function RecordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
+type Colors = ReturnType<typeof useTheme>['colors'];
+
+const makeStyles = (colors: Colors) => StyleSheet.create({
+  container:        { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -235,53 +242,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: colors.border,
   },
-  topBtn: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.textSecondary,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-  },
-  topBtnSave: {
-    color: theme.colors.textPrimary,
-    fontWeight: '600',
-  },
-  transcript: {
-    flex: 1,
-  },
-  transcriptContent: {
-    paddingVertical: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl,
-    gap: 2,
-  },
-  interimRow: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.xs,
-  },
-  interim: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.textTertiary,
-    fontStyle: 'italic',
-  },
+  topBtn:           { fontSize: theme.fontSize.md, color: colors.textSecondary, paddingVertical: 4, paddingHorizontal: 4 },
+  topBtnSave:       { color: colors.textPrimary, fontWeight: '600' },
+  transcript:       { flex: 1 },
+  transcriptContent:{ paddingVertical: theme.spacing.md, paddingBottom: theme.spacing.xxl, gap: 2 },
+  interimRow:       { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.xs },
+  interim:          { fontSize: theme.fontSize.md, color: colors.textTertiary, fontStyle: 'italic' },
   controls: {
     paddingBottom: 40,
     paddingTop: theme.spacing.md,
     alignItems: 'center',
     gap: theme.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
-  recordingLabel: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.recording,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  hint: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textTertiary,
-    marginTop: -theme.spacing.xs,
-  },
+  recordingLabel:   { fontSize: theme.fontSize.xs, color: colors.recording, fontWeight: '700', letterSpacing: 1.5 },
+  hint:             { fontSize: theme.fontSize.sm, color: colors.textTertiary, marginTop: -theme.spacing.xs },
 });

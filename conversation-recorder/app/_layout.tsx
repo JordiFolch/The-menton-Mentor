@@ -1,46 +1,53 @@
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { theme } from '../constants/theme';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 
 function SettingsButton() {
   const router = useRouter();
+  const { colors } = useTheme();
   return (
     <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={12}>
-      <Text style={styles.settingsBtn}>⚙</Text>
+      <Text style={[styles.settingsBtn, { color: colors.textSecondary }]}>⚙</Text>
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
-  settingsBtn: {
-    fontSize: 20,
-    color: theme.colors.textSecondary,
-    paddingRight: 4,
-  },
-});
-
-export default function RootLayout() {
+function AppStack() {
+  const { colors, isDark } = useTheme();
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.background },
-          headerTintColor: theme.colors.textPrimary,
+          headerStyle:       { backgroundColor: colors.background },
+          headerTintColor:   colors.textPrimary,
           headerShadowVisible: false,
-          headerBackTitle: '',
-          contentStyle: { backgroundColor: theme.colors.background },
+          headerBackTitle:   '',
+          contentStyle:      { backgroundColor: colors.background },
         }}
       >
         <Stack.Screen
           name="index"
           options={{ title: 'Converses', headerRight: () => <SettingsButton /> }}
         />
-        <Stack.Screen name="record" options={{ title: 'Nova gravació' }} />
+        <Stack.Screen name="record"       options={{ title: 'Nova gravació' }} />
         <Stack.Screen name="session/[id]" options={{ title: 'Transcripció' }} />
-        <Stack.Screen name="settings" options={{ title: 'Configuració' }} />
+        <Stack.Screen name="settings"     options={{ title: 'Configuració' }} />
+        <Stack.Screen name="onboarding"   options={{ headerShown: false }} />
       </Stack>
     </>
   );
 }
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AppStack />
+    </ThemeProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  settingsBtn: { fontSize: 20, paddingRight: 4 },
+});
